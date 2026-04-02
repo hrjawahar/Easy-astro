@@ -1,1 +1,315 @@
+(function () {
+  const SIGNS = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"];
+  const PLANETS = ["Sun","Moon","Mars","Mercury","Jupiter","Venus","Saturn","Rahu","Ketu"];
+
+  const HOUSE_TOPICS = {
+    1: "Self, body, identity, temperament, vitality",
+    2: "Wealth, speech, family, values",
+    3: "Effort, courage, communication, siblings",
+    4: "Home, mother, property, inner emotional base",
+    5: "Intelligence, children, creativity, poorva punya",
+    6: "Debt, disease, obstacles, service, enemies",
+    7: "Marriage, partnership, public dealings",
+    8: "Sudden events, vulnerability, secrecy, transformation",
+    9: "Dharma, blessings, higher wisdom, father, fortune",
+    10: "Career, karma, status, reputation, work direction",
+    11: "Gains, networks, fulfilment, social circle",
+    12: "Foreign stay, sleep, losses, spirituality, withdrawal"
+  };
+
+  const KARAKAS = {
+    1: ["Sun", "Lagna lord"],
+    2: ["Jupiter", "Venus"],
+    4: ["Moon", "Mars"],
+    5: ["Jupiter"],
+    7: ["Venus"],
+    9: ["Sun", "Jupiter"],
+    10: ["Sun", "Mercury", "Saturn", "Jupiter"],
+    12: ["Saturn", "Rahu", "Ketu"]
+  };
+
+  const SIGN_LORD = {
+    Aries: "Mars", Taurus: "Venus", Gemini: "Mercury", Cancer: "Moon",
+    Leo: "Sun", Virgo: "Mercury", Libra: "Venus", Scorpio: "Mars",
+    Sagittarius: "Jupiter", Capricorn: "Saturn", Aquarius: "Saturn", Pisces: "Jupiter"
+  };
+
+  const EXALTATION = {
+    Sun: "Aries", Moon: "Taurus", Mars: "Capricorn", Mercury: "Virgo",
+    Jupiter: "Cancer", Venus: "Pisces", Saturn: "Libra",
+    Rahu: "Taurus", Ketu: "Scorpio"
+  };
+
+  const DEBILITATION = {
+    Sun: "Libra", Moon: "Scorpio", Mars: "Cancer", Mercury: "Pisces",
+    Jupiter: "Capricorn", Venus: "Virgo", Saturn: "Aries",
+    Rahu: "Scorpio", Ketu: "Taurus"
+  };
+
+  const NATURAL_MALEFICS = new Set(["Sun","Mars","Saturn","Rahu","Ketu"]);
+  const NATURAL_BENEFICS = new Set(["Moon","Mercury","Jupiter","Venus"]);
+
+  function clone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+  }
+
+  function houseToSign(lagnaSign, house) {
+    const start = SIGNS.indexOf(lagnaSign);
+    return SIGNS[(start + house - 1) % 12];
+  }
+
+  function signToHouse(lagnaSign, sign) {
+    const start = SIGNS.indexOf(lagnaSign);
+    const target = SIGNS.indexOf(sign);
+    return ((target - start + 12) % 12) + 1;
+  }
+
+  function chartMap(chart) {
+    const map = {};
+    for (let h = 1; h <= 12; h++) {
+      map[h] = chart.houses[h] || [];
+    }
+    return map;
+  }
+
+  function locatePlanet(chart, planet) {
+    for (let h = 1; h <= 12; h++) {
+      if ((chart.houses[h] || []).includes(planet)) {
+        return { house: h, sign: houseToSign(chart.lagnaSign, h) };
+      }
+    }
+    return null;
+  }
+
+  function aspects(planet, fromHouse) {
+    const out = [];
+    const generic = ((fromHouse + 7 - 1) % 12) + 1;
+    out.push(generic);
+    if (planet === "Mars") out.push(((fromHouse + 4 - 1) % 12) + 1, ((fromHouse + 8 - 1) % 12) + 1);
+    if (planet === "Jupiter") out.push(((fromHouse + 5 - 1) % 12) + 1, ((fromHouse + 9 - 1) % 12) + 1);
+    if (planet === "Saturn") out.push(((fromHouse + 3 - 1) % 12) + 1, ((fromHouse + 10 - 1) % 12) + 1);
+    if (planet === "Rahu" || planet === "Ketu") out.push(((fromHouse + 5 - 1) % 12) + 1, ((fromHouse + 9 - 1) % 12) + 1);
+    return [...new Set(out)];
+  }
+
+  function getAfflictionSignals(chart, targetHouse, targetPlanet) {
+    const messages = [];
+    const occupants = chart.houses[targetHouse] || [];
+    const maleficOccupants = occupants.filter(p => NATURAL_MALEFICS.has(p) && p !== targetPlanet);
+    if (maleficOccupants.length) {
+      messages.push(`occupied with malefic influence from ${maleficOccupants.join(", ")}`);
+    }
+    for (const p of PLANETS) {
+      const pos = locatePlanet(chart, p);
+      if (!pos || p === targetPlanet) continue;
+      if (aspects(p, pos.house).includes(targetHouse) && NATURAL_MALEFICS.has(p)) {
+        messages.push(`aspected by ${p}`);
+      }
+    }
+    const pos = locatePlanet(chart, targetPlanet);
+    if (pos) {
+      if (DEBILITATION[targetPlanet] === pos.sign) messages.push(`debilitated in ${pos.sign}`);
+      if (targetHouse === 6 || targetHouse === 8 || targetHouse === 12) messages.push(`placed in a dusthana house (${targetHouse})`);
+    }
+    return [...new Set(messages)];
+  }
+
+  function findHouseLord(lagnaSign, house) {
+    const sign = houseToSign(lagnaSign, house);
+    return SIGN_LORD[sign];
+  }
+
+  function classifyStrength(chart, planet) {
+    const pos = locatePlanet(chart, planet);
+    if (!pos) return { label: "Not placed", score: 0, notes: [] };
+    const notes = [];
+    let score = 0;
+    if (EXALTATION[planet] === pos.sign) {
+      score += 2;
+      notes.push(`exalted in ${pos.sign}`);
+    }
+    if (DEBILITATION[planet] === pos.sign) {
+      score -= 2;
+      notes.push(`debilitated in ${pos.sign}`);
+    }
+    if ([1,4,7,10].includes(pos.house)) {
+      score += 1;
+      notes.push("in kendra");
+    }
+    if ([1,5,9].includes(pos.house)) {
+      score += 1;
+      notes.push("in trikona");
+    }
+    const conjunctions = (chart.houses[pos.house] || []).filter(p => p !== planet);
+    const benefics = conjunctions.filter(p => NATURAL_BENEFICS.has(p));
+    const malefics = conjunctions.filter(p => NATURAL_MALEFICS.has(p));
+    if (benefics.length) {
+      score += 1;
+      notes.push(`supported by ${benefics.join(", ")}`);
+    }
+    if (malefics.length) {
+      score -= 1;
+      notes.push(`conjoined with ${malefics.join(", ")}`);
+    }
+    const label = score >= 2 ? "Strong" : score >= 0 ? "Moderate" : "Sensitive";
+    return { label, score, notes };
+  }
+
+  function deriveForeignTravelInsight(d1, d9) {
+    const indicators = [];
+    const twelfthLord = findHouseLord(d1.lagnaSign, 12);
+    const ninthLord = findHouseLord(d1.lagnaSign, 9);
+    const seventhLord = findHouseLord(d1.lagnaSign, 7);
+
+    const p12 = locatePlanet(d1, twelfthLord);
+    const p9 = locatePlanet(d1, ninthLord);
+    const p7 = locatePlanet(d1, seventhLord);
+    const rahu = locatePlanet(d1, "Rahu");
+
+    let score = 0;
+    if (p12 && [9,12,7,4,10].includes(p12.house)) {
+      score += 2;
+      indicators.push(`12th lord ${twelfthLord} linked to house ${p12.house}`);
+    }
+    if (p9 && [12,7,9].includes(p9.house)) {
+      score += 1;
+      indicators.push(`9th lord ${ninthLord} linked to long-distance travel themes`);
+    }
+    if (p7 && [9,12,10].includes(p7.house)) {
+      score += 1;
+      indicators.push(`7th lord ${seventhLord} connected with external/public sphere`);
+    }
+    if (rahu && [4,7,9,10,12].includes(rahu.house)) {
+      score += 2;
+      indicators.push(`Rahu in house ${rahu.house} often amplifies foreign or unconventional movement`);
+    }
+
+    const d9TwelfthLord = findHouseLord(d9.lagnaSign, 12);
+    const d9Pos = locatePlanet(d9, d9TwelfthLord);
+    if (d9Pos && [7,9,10,12].includes(d9Pos.house)) {
+      score += 1;
+      indicators.push(`D9 12th lord ${d9TwelfthLord} sustains external-settlement patterns`);
+    }
+
+    let verdict = "Remote";
+    if (score >= 5) verdict = "Strong chance";
+    else if (score >= 3) verdict = "Possible";
+
+    let summary = "";
+    if (verdict === "Strong chance") {
+      summary = "The chart carries meaningful combinations for foreign travel, extended stays, or work-linked movement outside the native place. Settlement becomes more plausible when career and relationship phases activate these houses.";
+    } else if (verdict === "Possible") {
+      summary = "The chart shows some support for travel or temporary overseas connection, but settlement may depend on timing, effort, profession, and supporting dashā/transit triggers.";
+    } else {
+      summary = "The chart does not show strong standalone settlement signatures from this rule set. Travel is still possible, but repeated or lasting foreign movement may need stronger timing support.";
+    }
+
+    return { verdict, score, indicators, summary };
+  }
+
+  function buildMahaDashaWatch(d1) {
+    const watch = [];
+    const checks = [
+      { area: "Marriage / partnership", house: 7, planet: "Venus" },
+      { area: "Career / karma", house: 10, planet: findHouseLord(d1.lagnaSign, 10) },
+      { area: "Home / peace / property", house: 4, planet: "Moon" },
+      { area: "Identity / vitality", house: 1, planet: "Sun" },
+      { area: "Fortune / blessings", house: 9, planet: "Jupiter" }
+    ];
+
+    checks.forEach(item => {
+      const aff = getAfflictionSignals(d1, item.house, item.planet);
+      const pos = locatePlanet(d1, item.planet);
+      if (pos && aff.length) {
+        watch.push({
+          planet: item.planet,
+          area: item.area,
+          reason: aff.join("; "),
+          line: `${item.planet} mahadasha should be watched carefully for ${item.area.toLowerCase()} because the significator shows sensitivity: ${aff.join("; ")}.`
+        });
+      }
+    });
+
+    return watch;
+  }
+
+  function synthesizeArea(areaName, d1, d9, houses, karakaPlanet) {
+    const rows = [];
+    houses.forEach(h => {
+      const d1Lord = findHouseLord(d1.lagnaSign, h);
+      const d9Lord = findHouseLord(d9.lagnaSign, h);
+      const d1LordPos = locatePlanet(d1, d1Lord);
+      const d9LordPos = locatePlanet(d9, d9Lord);
+      rows.push({
+        house: h,
+        significance: HOUSE_TOPICS[h],
+        d1: d1LordPos ? `${d1Lord} in house ${d1LordPos.house} (${d1LordPos.sign})` : `${d1Lord} not placed`,
+        d9: d9LordPos ? `${d9Lord} in house ${d9LordPos.house} (${d9LordPos.sign})` : `${d9Lord} not placed`
+      });
+    });
+
+    const d1Strength = classifyStrength(d1, karakaPlanet);
+    const d9Strength = classifyStrength(d9, karakaPlanet);
+    const movement = d9Strength.score > d1Strength.score ? "improves" :
+                     d9Strength.score < d1Strength.score ? "becomes more sensitive" :
+                     "stays broadly similar";
+
+    const narrative = `${areaName} in early life is judged mainly from D1, while long-run durability is cross-checked in D9. Here the karaka ${karakaPlanet} is ${d1Strength.label.toLowerCase()} in D1 and ${d9Strength.label.toLowerCase()} in D9, so the theme ${movement} with maturity.`;
+
+    return { rows, narrative, d1Strength, d9Strength };
+  }
+
+  function analyze(input) {
+    const d1 = clone(input.d1);
+    const d9 = clone(input.d9);
+
+    const areas = {
+      identity: synthesizeArea("Identity & vitality", d1, d9, [1], "Sun"),
+      marriage: synthesizeArea("Marriage & partnership", d1, d9, [7], "Venus"),
+      career: synthesizeArea("Career & karma", d1, d9, [10], findHouseLord(d1.lagnaSign, 10)),
+      wealth: synthesizeArea("Wealth & family", d1, d9, [2,11], "Jupiter"),
+      home: synthesizeArea("Home, inner peace & property", d1, d9, [4], "Moon")
+    };
+
+    const foreign = deriveForeignTravelInsight(d1, d9);
+    const maha = buildMahaDashaWatch(d1);
+
+    const headline = [];
+    if (areas.marriage.d9Strength.score > areas.marriage.d1Strength.score) headline.push("relationship themes may mature better with time");
+    if (areas.career.d1Strength.score >= 2 || areas.career.d9Strength.score >= 2) headline.push("career axis shows usable strength");
+    if (foreign.verdict !== "Remote") headline.push("foreign movement combinations are present");
+    if (!headline.length) headline.push("mixed chart with selective strengths and caution zones");
+
+    return {
+      generatedAt: new Date().toISOString(),
+      headline,
+      areas,
+      foreign,
+      maha,
+      meta: {
+        version: "v2-split-js",
+        method: "manual-entry-browser-rule-engine"
+      }
+    };
+  }
+
+  function renderReference() {
+    return {
+      signs: SIGNS,
+      planets: PLANETS,
+      houseTopics: HOUSE_TOPICS,
+      signLord: SIGN_LORD,
+      exaltation: EXALTATION,
+      debilitation: DEBILITATION
+    };
+  }
+
+  window.AstrologyEngine = {
+    SIGNS,
+    PLANETS,
+    HOUSE_TOPICS,
+    analyze,
+    renderReference
+  };
+})();
 
