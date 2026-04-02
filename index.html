@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>D1–D9 Insight Mapper</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>D1–D9 Insight Mapper</h1>
+      <p class="muted">Manual-entry browser app for rule-based Rāśi (D1) and Navāṁśa (D9) synthesis.</p>
+    </div>
+    <div class="top-actions">
+      <button id="saveBtn" class="btn secondary">Save</button>
+      <button id="downloadBtn" class="btn primary">Download Report</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="analysis">Analysis</button>
+    <button class="tab" data-tab="reference">Reference</button>
+    <button class="tab" data-tab="history">History</button>
+  </nav>
+
+  <main class="layout">
+    <section id="analysis" class="tab-panel active">
+      <div class="card">
+        <h2>Profile</h2>
+        <div class="grid two">
+          <label>
+            Native Name
+            <input id="nativeName" type="text" placeholder="Enter name for this report" />
+          </label>
+          <label>
+            Notes
+            <input id="notes" type="text" placeholder="Optional working note" />
+          </label>
+        </div>
+      </div>
+
+      <div class="grid two stack-mobile">
+        <section class="card">
+          <div class="section-head">
+            <h2>D1 (Rāśi) Grid</h2>
+            <div class="inline">
+              <label>
+                Lagna
+                <select id="d1Lagna"></select>
+              </label>
+            </div>
+          </div>
+          <div id="d1Grid" class="house-grid"></div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <h2>D9 (Navāṁśa) Grid</h2>
+            <div class="inline">
+              <label>
+                Lagna
+                <select id="d9Lagna"></select>
+              </label>
+            </div>
+          </div>
+          <div id="d9Grid" class="house-grid"></div>
+        </section>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>Quick Controls</h2>
+          <div class="inline">
+            <button id="sampleBtn" class="btn ghost">Load Sample</button>
+            <button id="clearBtn" class="btn ghost">Clear</button>
+            <button id="analyzeBtn" class="btn primary">Analyze</button>
+          </div>
+        </div>
+        <p class="muted">
+          Enter planets by selecting a sign for each house. Multiple planets in a house can be selected.
+          This version is rule-based, manual-entry only, and does not calculate chart positions from birth data.
+        </p>
+      </div>
+
+      <div id="resultsRoot" class="results"></div>
+    </section>
+
+    <section id="reference" class="tab-panel">
+      <div class="card">
+        <h2>Reference Page</h2>
+        <div id="referenceRoot"></div>
+      </div>
+    </section>
+
+    <section id="history" class="tab-panel">
+      <div class="card">
+        <div class="section-head">
+          <h2>Saved Sessions</h2>
+          <button id="refreshHistoryBtn" class="btn ghost">Refresh</button>
+        </div>
+        <div id="historyRoot" class="history-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer muted">
+    Built for browser-only use. Interpretations are educational and rule-based, not deterministic life predictions.
+  </footer>
+
+  <script src="analyze.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
